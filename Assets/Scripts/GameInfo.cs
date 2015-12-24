@@ -33,21 +33,24 @@ public class GameInfo{
 	public int maxTries = 7;
 	public int maxDigits = 4;
 	public int[] bets = { 
-	    50, //bet額
-	    60, 
-	    70, 
-	    80, 
-	    90, 
-	    100
+	    10, //bet額
+	    20, 
+	    50, 
+	    100, 
+	    200, 
+	    500,
+		1000,
+		2000,
+		10000
 	};
 	public int[] odds = { 
 		7777,//初回の倍率
 		500,
 		120,
 		50,
-		20,
+		25,
+		15,
 		10,
-		7,
 	};
 	public string version = "0.0";
     }
