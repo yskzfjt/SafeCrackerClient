@@ -1,8 +1,4 @@
 Library
 Temp
 SafeCrackerWebGL
-*.pidb
-*.sln
-*.userprefs
 *.*~
-*.meta
