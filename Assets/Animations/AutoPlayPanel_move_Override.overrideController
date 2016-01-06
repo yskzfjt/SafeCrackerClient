@@ -1,0 +1,10 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!221 &22100000
+AnimatorOverrideController:
+  m_ObjectHideFlags: 0
+  m_PrefabParentObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 0}
+  m_Name: AutoPlayPanel_move_Override
+  m_Controller: {fileID: 9100000, guid: 150128a31b8c1f4488e2ceeb422a658f, type: 2}
+  m_Clips: []
