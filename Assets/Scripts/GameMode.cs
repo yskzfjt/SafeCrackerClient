@@ -22,7 +22,7 @@ public class GameMode : Mode  {
 	ctrl.BetDownButton.GetComponent<Button>().onClick.AddListener( OnBetDownButton );
 	ctrl.GiveupButton.GetComponent<Button>().onClick.AddListener( OnGiveupButton );
 	ctrl.ExecButton.GetComponent<Button>().onClick.AddListener( OnExecButton );
-	ctrl.AutoButton.GetComponent<Button>().onClick.AddListener( OnAutoButton );
+	ctrl.AutoButton.GetComponent<Button>().onClick.AddListener( OnAutoFillButton );
 	ctrl.ClearButton.GetComponent<Button>().onClick.AddListener( OnClearButton );
 	ctrl.NumberButtons[0].GetComponent<Button>().onClick.AddListener( delegate{ OnNumberInputButton(0); } );
 	ctrl.NumberButtons[1].GetComponent<Button>().onClick.AddListener( delegate{ OnNumberInputButton(1); } );
@@ -34,6 +34,11 @@ public class GameMode : Mode  {
 	ctrl.NumberButtons[7].GetComponent<Button>().onClick.AddListener( delegate{ OnNumberInputButton(7); } );
 	ctrl.NumberButtons[8].GetComponent<Button>().onClick.AddListener( delegate{ OnNumberInputButton(8); } );
 	ctrl.NumberButtons[9].GetComponent<Button>().onClick.AddListener( delegate{ OnNumberInputButton(9); } );
+
+	//////////////////////////////////////////////
+	//@todo 超テキトーauto play
+	//////////////////////////////////////////////
+	ctrl.AutoPlayCheckBox.GetComponent<Toggle>().onValueChanged.AddListener( OnAutoCheckBox );
     }
     public override void OnUpdate(){
 
@@ -66,8 +71,12 @@ public class GameMode : Mode  {
 	default: break;
 	}
 
-    	info.OnUpdate();
+	//@todo.
+	//毎フレーム呼ぶ必要はない。
+	ctrl.RefreshView();
+
     }
+
     public override void OnEnd(){
     }
 
@@ -75,8 +84,23 @@ public class GameMode : Mode  {
     //NEW_GAME GameInfo.DynamicInfoの初期化
     //////////////////////////////////////////////
     protected void UpdateNEW_GAME(){
-	//if( info.GameID == 0 && info.PhaseCounter == 0 ) snd.Play( "bgm", 0.2f );
-	DoHTTPAndGoodBye();
+	switch( info.PhaseStatus ){
+	case 0:{
+	    DoHTTP( GameInfo.DynamicInfoURL, GameInfo.DynamicInfoParamName, info.SerializeDynamicInfo() );
+	    ++info.PhaseStatus;
+	}break;
+	case 1:{
+	    //HTTPのエラーはページジャンプなので気にしなくて良い。
+	    if( sys.IsHTTPDone() ){
+		if( sys.IsHTTPSuccess() ){
+		    info.ResetLocalDataForNewGame();
+		    info.ReceiveServerReqPhase();
+		}else{
+		    Request( MODES.ERROR );
+		}
+	    }
+	}break;
+	}
     }
 
     //////////////////////////////////////////////
@@ -84,10 +108,31 @@ public class GameMode : Mode  {
     //////////////////////////////////////////////
     protected void UpdateSELECT(){
 	switch( info.PhaseStatus ){
-	case 1:{//TRY
+	case 0:{
+	    info.ResetLocalDataForNewGame();
+	    ++info.PhaseStatus;
+	}break;
+	case 1:{
+	    //auto fill と　auto play 超テキトー
+	    if( info.AutoPlay && !info.SemiAuto ){
+		info.SemiAuto = true;
+	    }
+	    if( info.SemiAuto ){
+		if( info.PhaseCounter % 7 == 0 ){
+		    if( info.IsDigitsFull() ){
+			info.PhaseStatus = 2;
+			info.SemiAuto = false;
+		    }else{
+			snd.Play( "push" );
+			info.ExecAutoAtCurrentCursor();
+		    }
+		}
+	    }
+	}break;
+	case 2:{//TRY
 	    info.RequestPhase( GameInfo.PHASE.TRY );
 	}break;
-	case 2:{//GIVE UP
+	case 3:{//GIVE UP
 	    info.RequestPhase( GameInfo.PHASE.GIVE_UP );
 	}break;
 	}
@@ -96,13 +141,43 @@ public class GameMode : Mode  {
     //TRY ExecButtonが押された. 
     //////////////////////////////////////////////
     protected void UpdateTRY(){
-	DoHTTPAndGoodBye();
+	switch( info.PhaseStatus ){
+	case 0:{
+	    DoHTTP( GameInfo.DynamicInfoURL, GameInfo.DynamicInfoParamName, info.SerializeDynamicInfo() );
+	    ++info.PhaseStatus;
+	}break;
+	case 1:{
+	    //HTTPのエラーはページジャンプなので気にしなくて良い。
+	    if( sys.IsHTTPDone() ){
+		if( sys.IsHTTPSuccess() ){
+		    info.ReceiveServerReqPhase();
+		}else{
+		    Request( MODES.ERROR );
+		}
+	    }
+	}break;
+	}
     }
     //////////////////////////////////////////////
     //GIVE_UP GiveUpButtonが押された. 
     //////////////////////////////////////////////
     protected void UpdateGIVE_UP(){
-	DoHTTPAndGoodBye();
+	switch( info.PhaseStatus ){
+	case 0:{
+	    DoHTTP( GameInfo.DynamicInfoURL, GameInfo.DynamicInfoParamName, info.SerializeDynamicInfo() );
+	    ++info.PhaseStatus;
+	}break;
+	case 1:{
+	    //HTTPのエラーはページジャンプなので気にしなくて良い。
+	    if( sys.IsHTTPDone() ){
+		if( sys.IsHTTPSuccess() ){
+		    info.ReceiveServerReqPhase();
+		}else{
+		    Request( MODES.ERROR );
+		}
+	    }
+	}break;
+	}
     }
     //////////////////////////////////////////////
     //RESULT 途中結果の表示中
@@ -129,11 +204,12 @@ public class GameMode : Mode  {
 	switch( info.PhaseCounter ){
 	case 0:{
 	    snd.Play( "finale" );
-	    ++info.TryID;
+	    //++info.TryID;
 	}break;
 	case 120:{
-	    ++info.GameID;
+	    //++info.GameID;
 	    info.RequestPhase( GameInfo.PHASE.NEW_GAME );
+	    CheckAutoPlayCounter();
 	}break;
 	default: break;
 	}
@@ -145,11 +221,12 @@ public class GameMode : Mode  {
 	switch( info.PhaseCounter ){
 	case 0:{
 	    snd.Play( "finale" );
-	    ++info.TryID;
+	    //++info.TryID;
 	}break;
 	case 120:{
-	    ++info.GameID;
+	    //++info.GameID;
 	    info.RequestPhase( GameInfo.PHASE.NEW_GAME );
+	    CheckAutoPlayCounter();
 	}break;
 	default: break;
 	}
@@ -185,12 +262,16 @@ public class GameMode : Mode  {
 
     void OnExecButton(){
 	if( info.IsDigitsFull() ){
+	    //成功
 	    snd.Play( "push" );
-	    info.PhaseStatus = 1;
+	    info.PhaseStatus = 2;
+	}else{
+	    //失敗
 	}
     }
     void OnGiveupButton(){
-	info.PhaseStatus = 2;
+	//@todo 1トライもしてないなら何もしなくて良いかも。
+	info.PhaseStatus = 3;
 	snd.Play( "clear" );
     }
 
@@ -203,49 +284,78 @@ public class GameMode : Mode  {
 	}
     }
     void OnNumberInputButton( int n ){
-	if( info.SetCurrentDigit( n ) ){
+	if( info.SetCurrentDigit( (sbyte)n ) ){
 	    //success
 	    snd.Play( "push" );
 	}else{
 	    //fail
 	}
     }
-    void OnAutoButton(){
+    void OnAutoFillButton(){
 	snd.Play( "push" );
-	info.ExecAutoAtCurrentCursor();
+	info.SemiAuto = true;
     }
 
     //////////////////////////////////////////////
+    //@todo 超テキトーauto play
+    //////////////////////////////////////////////
+    void OnAutoCheckBox( bool flg ){
+	if( flg ){
+	    info.AutoPlay = true;
+	    //とりあえず10回
+	    info.AutoCounter = 10;
+	}else{
+	    info.AutoPlay = false;
+	    info.AutoCounter = 0;
+	}
+    }
+
+
+
+    //////////////////////////////////////////////
+    //auto play utility winかlose.
+    //@todo giveupできてもいいかもしれない。
+    //////////////////////////////////////////////
+    protected void CheckAutoPlayCounter(){
+	if( info.AutoCounter > 0 ){
+	    --info.AutoCounter;
+	    if( info.AutoCounter == 0 ){
+		info.AutoPlay = false;
+		ctrl.AutoPlayCheckBox.GetComponent<Toggle>().isOn = false;
+	    }
+	}
+    }
+    //////////////////////////////////////////////
     //HTTP util
     //////////////////////////////////////////////
-    protected bool DoHTTPAndGoodBye(){
-	bool flg = false;
-	switch( info.PhaseStatus ){
-	case 0:{
-	    DoHTTP( GameInfo.DynamicInfoURL, GameInfo.DynamicInfoParamName, info.SerializeDynamicInfo() );
-	    ++info.PhaseStatus;
-	}break;
-	case 1:{
-	    //httpResponseにreqPhaseが入って勝手に分岐する。ここには来ないこともありえる。
-	    if( sys.IsHTTPDone() ){
-		flg = true;
-	    }
-	}break;
-	}
-	return flg;
-    }
-    protected bool GoAfterHTTP( GameInfo.PHASE p ){
-	if( sys.IsHTTPDone() ){
-	    if( sys.IsHTTPSuccess() ){
-		info.DeserializeDynamicInfo( sys.GetHTTPResponse() );
-		info.RequestPhase( p );
-	    }else{
-		info.RequestPhase( GameInfo.PHASE.ERROR );
-	    }
-	    return true;
-	}else{
-	    return false;
-	}
-    }
+//     protected bool DoHTTPAndGoodBye(){
+// 	bool flg = false;
+// 	switch( info.PhaseStatus ){
+// 	case 0:{
+// 	    DoHTTP( GameInfo.DynamicInfoURL, GameInfo.DynamicInfoParamName, info.SerializeDynamicInfo() );
+// 	    ++info.PhaseStatus;
+// 	}break;
+// 	case 1:{
+// 	    //httpResponseにreqPhaseが入って勝手に分岐する。ここには来ないこともありえる。
+// 	    if( sys.IsHTTPDone() ){
+// 		flg = true;
+// 	    }
+// 	}break;
+// 	}
+// 	return flg;
+//     }
+//     protected bool GoAfterHTTP( GameInfo.PHASE p ){
+// 	if( sys.IsHTTPDone() ){
+// 	    if( sys.IsHTTPSuccess() ){
+// 		info.DeserializeDynamicInfo( sys.GetHTTPResponse() );
+// 		info.RequestPhase( p );
+// 	    }else{
+// 		info.RequestPhase( GameInfo.PHASE.ERROR );
+// 	    }
+// 	    return true;
+// 	}else{
+// 	    return false;
+// 	}
+//     }
 
 }

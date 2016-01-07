@@ -17,6 +17,8 @@ public class InitMode : Mode  {
     public override void OnUpdate(){
 	switch( no ){
 	case 0:{
+	     //ログイン時に一度だけ記録しておくデータ。
+	    //@todo 本番はこの時点ですでにクッキーが設定されている。
 	    DoHTTP( GameInfo.StaticInfoURL, GameInfo.StaticInfoParamName, info.SerializeStaticInfo() );
 	    ++no;
 	}break;

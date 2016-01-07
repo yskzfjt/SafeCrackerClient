@@ -5178,6 +5178,7 @@ GameObject:
   - 224: {fileID: 2111943939}
   - 222: {fileID: 2111943941}
   - 114: {fileID: 2111943940}
+  - 114: {fileID: 2111943942}
   m_Layer: 5
   m_Name: DebugText
   m_TagString: Untagged
@@ -5200,7 +5201,7 @@ RectTransform:
   m_AnchorMin: {x: .5, y: .5}
   m_AnchorMax: {x: .5, y: .5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 160, y: 30}
+  m_SizeDelta: {x: 83.1920929, y: 85.8757095}
   m_Pivot: {x: .5, y: .5}
 --- !u!114 &2111943940
 MonoBehaviour:
@@ -5227,13 +5228,32 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 0
     m_LineSpacing: 1
-  m_Text: New Text
+  m_Text: 'New Text
+
+    dddd
+
+    dddd
+
+'
 --- !u!222 &2111943941
 CanvasRenderer:
   m_ObjectHideFlags: 0
   m_PrefabParentObject: {fileID: 0}
   m_PrefabInternal: {fileID: 0}
   m_GameObject: {fileID: 2111943938}
+--- !u!114 &2111943942
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_PrefabParentObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 0}
+  m_GameObject: {fileID: 2111943938}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 1741964061, guid: f5f67c52d1564df4a8936ccd202a3bd8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_HorizontalFit: 2
+  m_VerticalFit: 2
 --- !u!1 &2120970473
 GameObject:
   m_ObjectHideFlags: 0

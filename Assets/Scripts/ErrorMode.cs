@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.UI;
 using System.Collections;
 
 public class ErrorMode : Mode  {
@@ -15,11 +16,12 @@ public class ErrorMode : Mode  {
 	Utility.SetUIAlpha( ctrl.Fader, 0.0f );
 	ctrl.Error.SetActive( true );
 	Utility.SetUIAlpha( ctrl.Error, 0.0f );
+	ctrl.ErrorText.GetComponent<Text>().text = sys.GetHTTPResponse();
     }
     public override void OnUpdate(){
+	ctrl.Error.SetActive( true );
 	float rate = Utility.Rate( modeCounter, fadeFrames );
 	if( rate >= 1.0f ){
-	    Request( MODES.HELP );
 	}else{
 	    Utility.SetUIAlpha( ctrl.Fader, rate > 0.5f ? 0.5f : rate );
 	    Utility.SetUIAlpha( ctrl.Error, rate );

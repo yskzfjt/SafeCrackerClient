@@ -1,10 +1,11 @@
-#define FORCE_BROWSER_LOCAL
 using UnityEngine;
 using System.Collections;
 using UnityEngine.UI;
 
+//for communication with js
+using System.Runtime.InteropServices;
+
 public class SystemScript : MonoBehaviour {
-//     Game game = null;
     ////////////////////////////////////////////////
     //public
     ////////////////////////////////////////////////
@@ -17,7 +18,6 @@ public class SystemScript : MonoBehaviour {
     private GameInfo info = new GameInfo();
     private ControllerScript ctrl;
     private SoundPlayer snd = new SoundPlayer();
-    //private GameStatus gameStatus = GameStatus.Instance;
 
     ////////////////////////////////////////////////
     //accessor
@@ -34,10 +34,51 @@ public class SystemScript : MonoBehaviour {
     protected string httpResponse;
 
     ////////////////////////////////////////////////
+    //java scriptとの連携をテスト
+    ////////////////////////////////////////////////
+    [DllImport("__Internal")]
+    private static extern void Hello();
+
+    [DllImport("__Internal")]
+    private static extern void HelloString(string str);
+
+    [DllImport("__Internal")]
+    private static extern void PrintFloatArray(float[] array, int size);
+
+    [DllImport("__Internal")]
+    private static extern int AddNumbers(int x, int y);
+
+    [DllImport("__Internal")]
+    private static extern string StringReturnValueFunction();
+
+    [DllImport("__Internal")]
+    private static extern string URLParams( string name );
+
+    void Start0() {
+        Hello();
+        
+        HelloString("This is a string.");
+        
+        float[] myArray = new float[10];
+        PrintFloatArray(myArray, myArray.Length);
+        
+        int result = AddNumbers(5, 7);
+        Debug.Log(result);
+        
+        Debug.Log(StringReturnValueFunction());
+
+	Debug.Log(URLParams( "user" ));
+
+    }
+
+    ////////////////////////////////////////////////
     //Functions
     ////////////////////////////////////////////////
     void Start () {
-	//参照解決
+#if !UNITY_EDITOR
+    //Start0();
+#endif
+	//ゲームオブジェクト参照解決
 	ctrl = GameObject.Find("ControllerObject").GetComponent<ControllerScript>();
 
 	//http初期化
@@ -46,13 +87,19 @@ public class SystemScript : MonoBehaviour {
 	//mode初期化
 	InitMode();
 
-//  	game = GameObject.Find( "Game" ).GetComponent<Game>();
     }
 
     void Update () {
+	//毎フレーム呼ばれる。
+	//呼ばれるゲームオブジェクトの順番は不定。
 	UpdateMode();
-// 	game.OnUpdate();
-// 	status.Update();
+    }
+
+    void LateUpdate(){
+	//全ゲームオブジェクトのUpdateが終わってから呼ばれる。
+	//ゲームフェーズの変更はこの中で行われる。
+	//この関数を使うのはSystemScriptだけにしたほうが良いかもしれない。
+    	info.OnUpdate();
     }
 
 
@@ -74,7 +121,6 @@ public class SystemScript : MonoBehaviour {
 
 	//common update
 	Mode.CommonUpdate();
-
     }
 
     void InitMode(){
@@ -122,35 +168,36 @@ public class SystemScript : MonoBehaviour {
 	}
     }
 
-#if (UNITY_EDITOR || FORCE_BROWSER_LOCAL)
+    //ダミーサーバーは廃止する方向で。
+// #if (FORCE_DUMMY_SERVER)
+//     //dummy
+//     IEnumerator Post (string url, string name, string xml) {
+// 	url = Constants.BASE_URL + url;
 
-    //dummy
+// 	httpStatus = HTTP_STATUS.WAIT;
+// 	httpResponse = null;
+
+// 	Debug.Log("HTTP: Sending Request! " + url);
+// 	//Debug.Log(xml);
+// 	//debugText.GetComponent<Text>().text = xml;
+
+// 	yield return new WaitForSeconds( UnityEngine.Random.Range( 0.1f, 4.0f ) );
+
+// 	ctrl.Indicator.SetActive(false);
+
+// 	DummyServer dummy = new DummyServer( url, name, xml );
+
+// 	httpResponse = dummy.httpResponse;
+// 	httpStatus = HTTP_STATUS.SUCCESS;
+
+// 	Debug.Log("HTTP: SUCCESS! " + httpResponse );
+//     }
+// #else
     IEnumerator Post (string url, string name, string xml) {
 	httpStatus = HTTP_STATUS.WAIT;
 	httpResponse = null;
-	float wait = UnityEngine.Random.Range( 0.1f, 4.0f );
 
-	Debug.Log("HTTP: Sending Request! " + url);
-	//Debug.Log(xml);
-	//debugText.GetComponent<Text>().text = xml;
-	ctrl.Indicator.SetActive(true);
-	yield return new WaitForSeconds( wait );
-	ctrl.Indicator.SetActive(false);
-
-	DummyServer dummy = new DummyServer( url, name, xml );
-
-	httpResponse = dummy.httpResponse;
-	httpStatus = HTTP_STATUS.SUCCESS;
-
-	Debug.Log("HTTP: SUCCESS! " + httpResponse );
-    }
-#else
-
-    //real
-    IEnumerator Post (string url, string name, string xml) {
-	httpStatus = HTTP_STATUS.WAIT;
-	httpResponse = null;
-
+	url = Constants.BASE_URL + url;
 	string error;
 	
 	//これを足すと勝手にPostになるらしい。
@@ -160,9 +207,17 @@ public class SystemScript : MonoBehaviour {
         WWW www = new WWW (url, form);
 
         // 送信開始
+	ctrl.Indicator.SetActive(true);
 	Debug.Log("HTTP: Sending Request! " + url);
-	Debug.Log(xml);
         yield return www;
+	ctrl.Indicator.SetActive(false);
+
+	//とりあえず、通信したxmlを渡してデシリアライズ。
+	xml = System.Text.Encoding.UTF8.GetString(www.bytes, 0, www.bytes.Length - 0);
+
+	//ctrl.DebugText.SetActive( true );;
+	ctrl.DebugText.GetComponent<Text>().text = xml;
+	Debug.Log(xml);
 
 	error = www.error;
 	if( error != null ){
@@ -170,12 +225,21 @@ public class SystemScript : MonoBehaviour {
 	    httpStatus = HTTP_STATUS.FAILURE;
 	    Debug.Log("HTTP: FAILURE! " + httpResponse );
 	}else{
-	    httpResponse = System.Text.Encoding.UTF8.GetString(www.bytes, 0, www.bytes.Length - 0);
+	    httpResponse = xml;
 	    httpStatus = HTTP_STATUS.SUCCESS;
 	    Debug.Log("HTTP: SUCCESS! " + httpResponse );
+
+	    if( name == GameInfo.DynamicInfoParamName ){
+		//GameInfo.DynamicInfo d = GameInfo.sDeserializeDynamicInfo( xml );
+		info.DeserializeDynamicInfo( xml );
+	    }else{
+		//GameInfo.StaticInfo s = GameInfo.sDeserializeStaticInfo( xml );
+		info.DeserializeStaticInfo( xml );
+	    }
+
 	}
     }
-#endif
+// #endif
 
 
 }

@@ -27,9 +27,10 @@ public class GameInfo{
     ////////////////////////////////////////////
     //Static Info. set once from InitMode.
     ////////////////////////////////////////////
-    public static readonly string StaticInfoURL = "/InitAPI";
-    public static readonly string StaticInfoParamName = "staticInfo";
-    [System.Serializable] [XmlRoot("staticInfo")] public class StaticInfo{
+    public static readonly string StaticInfoURL = Constants.STATIC_INFO_URL;
+    public static readonly string StaticInfoParamName = Constants.STATIC_INFO_PARAM_NAME;
+    //！！！！！！！アノテーションはstatic readonlyでも変数が使えない。！！！！！！
+    [System.Serializable] [XmlRoot("staticGameInfo")] public class StaticInfo{
 	public int maxTries = 7;
 	public int maxDigits = 4;
 	public int[] bets = { 
@@ -52,7 +53,19 @@ public class GameInfo{
 		15,
 		10,
 	};
-	public string version = "0.0";
+	public string gameInfoVersion = Constants.VERSION;
+
+	//urlを見て、ローカルサーバーかどうかを調べる。
+	public bool local = true;
+
+	public string loginName = Constants.UNSET_STRING;
+	public string token = Constants.UNSET_STRING;
+	public long loginTimeStamp;
+	public long lastAccessTimeStamp;
+	public long newGameTimeStamp;
+	public string currency = Constants.UNSET_STRING; //ISO currency CODE can be blank
+	public string country = Constants.UNSET_STRING; //ISO country CODE can be blank
+	public int balance = -1;
     }
     protected StaticInfo s = new StaticInfo();
     //accessors
@@ -64,16 +77,18 @@ public class GameInfo{
     ////////////////////////////////////////////
     //Dynamic Info. set many times from GameMode
     ////////////////////////////////////////////
-    public static readonly string DynamicInfoURL = "/GameAPI";
-    public static readonly string DynamicInfoParamName = "dynamicInfo";
-    [System.Serializable] [XmlRoot("dynamicInfo")] public class DynamicInfo{
-	public string timeStamp = "-";
-	public string token = "-";
-	public string message = "-";
+    public static readonly string DynamicInfoURL = Constants.DYNAMIC_INFO_URL;
+    public static readonly string DynamicInfoParamName = Constants.DYNAMIC_INFO_PARAM_NAME;
+    //！！！！！！！アノテーションはstatic readonlyでも変数が使えない。！！！！！！
+    [System.Serializable] [XmlRoot("dynamicGameInfo")] public class DynamicInfo{
+	//StaticInfoにセットされた値のコピー。
+	public string loginName = Constants.UNSET_STRING;
+	public long loginTimeStamp = 0;
+	public long newGameTimeStamp = 0;
 	
 	public PHASE curPhase = PHASE.NONE;
-	public PHASE reqPhase = PHASE.NONE;
-	public bool isAuto = false;
+	public PHASE serverReqPhase = PHASE.NONE;
+	public bool autoPlay = false;
 	
 	public int gameID = 0;
 	public int tryID = 0;
@@ -84,26 +99,27 @@ public class GameInfo{
 
 	public int curCrack = 0;
 
-	public List<int> digits = new List<int>();
-	public List<int> crackedDigits = new List<int>();
+	public List<short> digits = new List<short>();
+	public List<short> crackedDigits = new List<short>();
     }
     protected DynamicInfo d = new DynamicInfo();
 
     //accessors
-    public string TimeStamp{ get{ return d.timeStamp; } }
-    public string Token{ get{ return d.token; } }
-    public string Message{ get{ return d.message; } }
     public PHASE CurPhase{ get{ return d.curPhase; } }
-    public PHASE ReqPhase{ get{ return d.reqPhase; } }
-    public bool IsAuto{ get{ return d.isAuto; } set{ d.isAuto = value; } }
+    public bool AutoPlay{ get{ return d.autoPlay; } set{ d.autoPlay = value; } }
     public int CreditBalance{ get{ return d.creditBalance; } set{ d.creditBalance = value; } }
     public int TryID{ get{ return d.tryID; } set{ d.tryID = value; } }
     public int GameID{ get{ return d.gameID; } set{ d.gameID = value; } }
     public int Bet{ get{ return d.bet; } set{ d.bet = value; } }
     public int Reward{ get{ return d.reward; } set{ d.reward = value; } }
     public int CurCrack{ get{ return d.curCrack; } set{ d.curCrack = value; } }
-    public List<int> Digits{ get{ return d.digits; } }
-    public List<int> CrackedDigits{ get{ return d.crackedDigits; } }
+    public List<short> Digits{ get{ return d.digits; } }
+    public List<short> CrackedDigits{ get{ return d.crackedDigits; } }
+    public PHASE GetAndResetServerReqPhase(){
+	PHASE req = d.serverReqPhase;
+	d.serverReqPhase = PHASE.NONE;
+	return req;
+    }
     
     ////////////////////////////////////////////
     //Local Info
@@ -113,11 +129,19 @@ public class GameInfo{
     protected PHASE oldPhase = PHASE.NONE;
     protected int phaseCounter = 0;
     protected int phaseStatus = 0;
+    protected bool semiAuto = false;
+    protected int autoCounter = 0;
+    protected PHASE reqPhase = PHASE.NONE;
     //accessor
+    public PHASE ReqPhase{ get{ return reqPhase; } }
     public int BetNo{	get{ return betNo; } set{ betNo = value; }    }
     public int CursorPos{ get{ return cursorPos; } set{ cursorPos = value; }    }
     public int PhaseCounter{ get{ return phaseCounter; } }
     public int PhaseStatus{ get{ return phaseStatus; } set{ phaseStatus = value; }    }
+    public int AutoCounter{ get{ return autoCounter; } set{ autoCounter = value; } }
+    public bool SemiAuto{ get{ return semiAuto; } set{ semiAuto = value; } }
+
+
     
     ////////////////////////////////////////////
     //Functions
@@ -128,7 +152,7 @@ public class GameInfo{
 	if( ReqPhase != PHASE.NONE ){
 	    oldPhase = CurPhase;
 	    d.curPhase = ReqPhase;
-	    d.reqPhase = PHASE.NONE;
+	    reqPhase = PHASE.NONE;
 	    phaseCounter = 0;
 	    phaseStatus = 0;
 
@@ -138,7 +162,10 @@ public class GameInfo{
 	}
     }
     public void RequestPhase( PHASE p ){
-	d.reqPhase = p;
+	reqPhase = p;
+    }
+    public void ReceiveServerReqPhase(){
+	RequestPhase( GetAndResetServerReqPhase() );
     }
     public bool IsPhase( PHASE p ){
 	return CurPhase == p;
@@ -152,9 +179,9 @@ public class GameInfo{
 	IncCursor();
     }
     public void ExecAutoAt( int i ){
-	List<int> candidates = GetCandidates( i );
+	List<short> candidates = GetCandidates( i );
 	int num = candidates[ (int)UnityEngine.Random.Range(0, candidates.Count-1) ];
-	SetDigitAt( i, num );
+	SetDigitAt( i, (short)num );
     }
     public void ExecAuto(){
 	for( int i=0; i<MaxDigits; ++i ){
@@ -206,25 +233,30 @@ public class GameInfo{
 	CrackedDigits[ c ] = GetDigitAt( c );
     }
 
-    public int GetDigitAt( int c ){
+    public short GetLastDigitAt( int c ){
+	//前回の入力c桁目
+	if( TryID<=0 ) return -1;
+	return GetDigitAt( TryID-1, c );
+    }
+    public short GetDigitAt( int c ){
 	//現在入力中のc桁目
 	return GetDigitAt( TryID, c );
     }
-    public int GetDigitAt( int t, int c ){
+    public short GetDigitAt( int t, int c ){
 	//t回目のc桁目
 	if( !IsValidCursor(c) ) return -1;
 	if( !IsValidTry(t) ) return -1;
 	return Digits[ Index(t, c) ];
     }
 
-    public void SetDigitAt( int t, int c, int d ){
+    public void SetDigitAt( int t, int c, short d ){
 	//t回目のc桁目にdを入力
 	if( !IsValidCursor(c) ) return;
 	if( !IsValidTry(t) ) return;
 	if( !IsValidDigit(d) ) return;
 	Digits[ Index(t , c) ] = d;
     }
-    public void SetDigitAt( int c, int d ){
+    public void SetDigitAt( int c, short d ){
 	//現在入力中のc桁目にdを入力
 	SetDigitAt( TryID, c, d );
     }
@@ -240,7 +272,7 @@ public class GameInfo{
     }
 
     //returns -1 if it's not cracked yet
-    public int GetCrackedDigitAt( int c ){
+    public short GetCrackedDigitAt( int c ){
 	//c桁目のクラックされた数字
 	if( !IsValidCursor(c) ) return -1;
 	return CrackedDigits[ c ];
@@ -261,9 +293,9 @@ public class GameInfo{
 	return true;
     }
 
-    public List<int> GetCandidates( int cursor ){
+    public List<short> GetCandidates( int cursor ){
 	//これまで入力していない数のリスト
-	List<int> c = new List<int>();
+	List<short> c = new List<short>();
 	if( TryID == 0 ){
 	    c.Add(0);	    c.Add(1);
 	    c.Add(2);	    c.Add(3);
@@ -278,13 +310,13 @@ public class GameInfo{
 	    for( int t=0; flg && t<TryID; ++t ){
 		if( n == GetDigitAt( t, cursor ) ) flg = false;
 	    }
-	    if( flg ) c.Add( n );
+	    if( flg ) c.Add( (short)n );
 	    
 	}
 	return c;
     }
 
-    public bool SetCurrentDigit( int no ){
+    public bool SetCurrentDigit( short no ){
 	if( !IsPhase( PHASE.SELECT ) ) return false;
 	if( IsDigitsFull() ) return false;
 	if( !IsValidDigit( no ) ) return false;
@@ -325,14 +357,15 @@ public class GameInfo{
 	return (no >= 0 && no < MaxTries );
     }
     public void StartNextTry(){
-	if( TryID < (MaxTries-1) ){
-	    ++TryID;
+	if( TryID < MaxTries ){
+	    //++TryID;
 	    for( int i=0; i<MaxDigits; ++i ){
 		if( IsCrackedDigitAt(i) ){
 		    SetDigitAt( i, GetCrackedDigitAt(i) );
 		}
 	    }
 	    ResetCursor();
+	    SetBet();
 	    SetReward();
 	}
     }
@@ -417,19 +450,26 @@ public class GameInfo{
     //DynamicInfo Init after StatycInfo
     ////////////////////////////////////////////
     public void InitDynamicInfo(){
-	TryID = 0;
+ 	if( s.local ){
+ 	    //ブラウザーのクッキーが効かないのでこうする。
+ 	    //本来はサーバーが送られたクッキーからこの値を持ってきてStaticInfoと照合する。
+	    d.loginName = s.loginName;
+	    d.loginTimeStamp = s.loginTimeStamp;
+	    d.creditBalance = s.balance;
+ 	}
+
 	GameID = 0;
-	InitDigits();
-	SetBet();
-	SetReward();
-	ResetCursor();
+	NewDynamicInfo();
     }
     public void NewDynamicInfo(){
 	TryID = 0;
 	InitDigits();
+	ResetLocalDataForNewGame();
+    }
+    public void ResetLocalDataForNewGame(){
+	ResetCursor();
 	SetBet();
 	SetReward();
-	ResetCursor();
     }
 
     ////////////////////////////////////////////////////////////////////
@@ -452,16 +492,19 @@ public class GameInfo{
     public string SerializeDynamicInfo(){
   	using( StringWriter textWriter = new Utf8StringWriter() ){
 	    var serializer = new XmlSerializer(typeof( DynamicInfo ));
-	    d.timeStamp = System.DateTime.Now.ToString("yyyyMMddHHmmss");
+	    //d.timeStamp = System.DateTime.Now.ToString("yyyyMMddHHmmss");
 	    serializer.Serialize(textWriter, d);
 	    return textWriter.ToString();
 	}
     }
-    public void DeserializeStaticInfo( string xmlString ){
+    static public StaticInfo sDeserializeStaticInfo( string xmlString ){
 	using (TextReader textReader = new StringReader(xmlString)){
 	    XmlSerializer deserializer = new XmlSerializer( typeof(StaticInfo) );
-	    s = (StaticInfo)deserializer.Deserialize(textReader);
+	    return (StaticInfo)deserializer.Deserialize(textReader);
 	}
+    }
+    public void DeserializeStaticInfo( string xmlString ){
+	s = sDeserializeStaticInfo( xmlString );
     }
     static public DynamicInfo sDeserializeDynamicInfo( string xmlString ){
 	using (TextReader textReader = new StringReader(xmlString)){

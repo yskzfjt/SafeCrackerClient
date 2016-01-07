@@ -34,6 +34,10 @@ public class ControllerScript : MonoBehaviour {
 
     protected GameObject numberButtonPanel;
     protected GameObject betPanel;
+
+    protected GameObject autoPlayCheckBox;
+
+
     protected int hitCounter;
 
     ////////////////////////////////////////////////
@@ -52,6 +56,7 @@ public class ControllerScript : MonoBehaviour {
     public GameObject AutoButton{ get{ return autoButton; } }
     public GameObject ErrorText{ get{ return errorText; } }
     public GameObject Indicator{ get{ return indicator; } }
+    public GameObject AutoPlayCheckBox{ get{ return autoPlayCheckBox; } }
 
     // Use this for initialization
     void Start () {
@@ -97,20 +102,21 @@ public class ControllerScript : MonoBehaviour {
 
 	numberButtonPanel = GameObject.Find( "NumberButton_Group" );
 
+	autoPlayCheckBox = GameObject.Find( "AutoPlayCheckBox" );
+
     }
 	
     // Update is called once per frame
     void Update () {
-	RefreshView();
+	//RefreshView();
     }
 
     string MoneyString( int cent ){
 	float c = cent / 100.0f;
 	return c.ToString( "C2" );
     }
-    void RefreshView(){
+    public void RefreshView(){
 	Error.SetActive( false );
-
 	switch( (int)info.CurPhase ){
 	case (int)GameInfo.PHASE.NEW_GAME:{
 	    EnableInputPanels( false );
@@ -121,15 +127,19 @@ public class ControllerScript : MonoBehaviour {
 	    EnableBetPanel( info.TryID == 0 );
 
 	    //number panel
-	    EnableNumberPanel( true );
-	    if( info.IsDigitsFull() ){
-		ExecButton.GetComponent<Button>().interactable = true;
-		autoButton.GetComponent<Button>().interactable = false;
-		DisableNumberButton();
+	    if( info.SemiAuto || info.AutoPlay ){
+		EnableNumberPanel( false );
 	    }else{
-		ExecButton.GetComponent<Button>().interactable = false;
-		autoButton.GetComponent<Button>().interactable = true;
-		SetNumberButton();
+		EnableNumberPanel( true );
+		if( info.IsDigitsFull() ){
+		    ExecButton.GetComponent<Button>().interactable = true;
+		    autoButton.GetComponent<Button>().interactable = false;
+		    DisableNumberButton();
+		}else{
+		    ExecButton.GetComponent<Button>().interactable = false;
+		    autoButton.GetComponent<Button>().interactable = true;
+		    SetNumberButton();
+		}
 	    }
 	    SetDigits();
 	}break;
@@ -160,6 +170,8 @@ public class ControllerScript : MonoBehaviour {
 	    ErrorText.GetComponent<Text>().text = " YOU WIN!!";
 	}break;
 	case (int)GameInfo.PHASE.ERROR:{
+	    ErrorText.GetComponent<Text>().text = sys.GetHTTPResponse();
+	    Error.SetActive( true );
 	    EnableInputPanels( false );
 	}break;
 	default: break;
@@ -200,14 +212,10 @@ public class ControllerScript : MonoBehaviour {
     public void SetDigitsResult(){
 
 	for( int i=0; i<info.MaxDigits; ++i ){
-	    int d = info.GetDigitAt( i );
-	    bool c = info.IsCrackedDigitAt( i );
-	    if( d < 0 ){
-		digits[i].GetComponent<NumberDisplayScript>().SetNone();
-	    }else{
-		if( c ) digits[i].GetComponent<NumberDisplayScript>().SetHit( d );
-		else digits[i].GetComponent<NumberDisplayScript>().SetFail( d );
-	    }
+	    if( info.IsCrackedDigitAt( i ) ) 
+		digits[i].GetComponent<NumberDisplayScript>().SetHit( info.GetLastDigitAt(i) );
+	    else 
+		digits[i].GetComponent<NumberDisplayScript>().SetFail( info.GetLastDigitAt(i) );
 	}
     }
     public void SetDigitsFinal(){
